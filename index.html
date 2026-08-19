@@ -617,6 +617,20 @@
     scammed: null, rankTier: null, roundHistory: [], skillStats: {}
   };
 
+  // ---------- Class Tracker (Google Sheets) ----------
+  // Paste your deployed Apps Script Web App URL here — see setup-instructions.md
+  const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzHV_Rrj_uFMXt23PzQxFAb16mnhG6zvrTcnh2DOqC2Bx-IPBv3aA6pZsRLN8uo3H7jww/exec';
+  function logToClassTracker(entry){
+    if(!SHEET_URL || SHEET_URL.indexOf('PASTE_YOUR') === 0) return; // not configured yet — skip silently
+    try{
+      fetch(SHEET_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids a CORS preflight that Apps Script can't handle
+        body: JSON.stringify(Object.assign({ action:'log', game:'Live Battle Part 1' }, entry))
+      }).catch(() => {}); // fire-and-forget — a dropped log entry should never interrupt gameplay
+    }catch(e){ /* offline or blocked — fail silently, the student's own game still works normally */ }
+  }
+
   // ---------- Progress persistence ----------
   const GAME_STORAGE_KEY = 'liveBattleGamePart1_progress_v1';
   function saveGameProgress(){
@@ -954,6 +968,15 @@
       s.attemptsList.push(questionAttempts);
       if(!isCorrect) s.wrongCount++;
     }
+
+    // send this attempt to the live class tracker (no-op if not configured)
+    logToClassTracker({
+      student: state.teamName,
+      round: rounds[state.roundIdx].title,
+      skill: curQ.skill || '',
+      attempts: questionAttempts,
+      correct: isCorrect
+    });
 
     if(isCorrect){
       state.roundScore++;
