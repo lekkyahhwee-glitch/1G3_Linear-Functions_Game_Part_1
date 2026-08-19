@@ -642,11 +642,13 @@
   function saveGameProgress(){
     try{
       localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify({
-        teamName: state.teamName, roundIdx: state.roundIdx,
+        teamName: state.teamName, sessionCode: state.sessionCode, roundIdx: state.roundIdx,
+        qIdx: state.qIdx, roundScore: state.roundScore, roundAnswers: state.roundAnswers,
         winsYou: state.winsYou, winsRival: state.winsRival,
         streak: state.streak, bestStreak: state.bestStreak,
         totalCorrect: state.totalCorrect, totalAnswered: state.totalAnswered,
-        peakViewers: state.peakViewers
+        peakViewers: state.peakViewers, roundHistory: state.roundHistory,
+        skillStats: state.skillStats
       }));
     }catch(e){ /* storage unavailable — progress just won't persist */ }
   }
@@ -669,11 +671,17 @@
     const saved = loadGameProgress();
     if(!saved) return;
     state.teamName = saved.teamName;
+    state.sessionCode = saved.sessionCode || '';
     state.roundIdx = saved.roundIdx;
+    state.qIdx = saved.qIdx || 0;
+    state.roundScore = saved.roundScore || 0;
+    state.roundAnswers = saved.roundAnswers || [];
     state.winsYou = saved.winsYou; state.winsRival = saved.winsRival;
     state.streak = saved.streak; state.bestStreak = saved.bestStreak;
     state.totalCorrect = saved.totalCorrect; state.totalAnswered = saved.totalAnswered;
     state.peakViewers = saved.peakViewers;
+    state.roundHistory = saved.roundHistory || [];
+    state.skillStats = saved.skillStats || {};
     document.getElementById('tallyYouLabel').textContent = state.teamName.toUpperCase();
     document.getElementById('vsYouLabel').textContent = state.teamName.toUpperCase();
     document.getElementById('battleYouLabel').textContent = state.teamName.toUpperCase();
@@ -684,8 +692,9 @@
       const dot = document.getElementById('rdot-' + i);
       if(dot) dot.classList.add('you'); // approximate — exact per-round result isn't stored, wins tally is what matters
     }
-    goTo('scr-round-intro');
-    showRoundIntro();
+    // jump straight back into the exact question they were on — no round-intro replay
+    goTo('scr-question');
+    renderQuestion();
   }
   function dismissResume(){
     clearGameProgress();
@@ -702,9 +711,10 @@
       input.addEventListener('keydown', e => { if(e.key === 'Enter') startMatch(); });
     }
     const saved = loadGameProgress();
-    if(saved && saved.roundIdx > 0){
+    if(saved && saved.totalAnswered > 0){
+      const qNum = (saved.qIdx || 0) + 1;
       document.getElementById('resumeText').textContent =
-        saved.teamName + ', you were on Round ' + (saved.roundIdx+1) + ' of 4 (' + saved.winsYou + '–' + saved.winsRival + ' vs Team Vertex).';
+        saved.teamName + ', you were on Round ' + (saved.roundIdx+1) + ' of 4, Question ' + qNum + ' (' + saved.winsYou + '–' + saved.winsRival + ' vs Team Vertex).';
       document.getElementById('resumePanel').style.display = 'block';
       if(input) input.value = saved.teamName;
     }
@@ -867,6 +877,7 @@
       }, 50);
     }
     startQuestionTimer();
+    saveGameProgress(); // checkpoint the moment this question appears, even before it's answered
   }
 
   // ============ Plot-on-grid question (big grid, tolerance-based tap matching) ============
@@ -1000,6 +1011,7 @@
     }
     document.getElementById('qExplain').classList.add('show');
     document.getElementById('qNextBtn').classList.add('show');
+    saveGameProgress(); // checkpoint after every question, not just at round boundaries
   }
 
   function answerMCQ(idx){
@@ -1165,6 +1177,7 @@
       showOfferScreen();
     } else {
       state.roundIdx++;
+      state.qIdx = 0; state.roundScore = 0; state.roundAnswers = [];
       saveGameProgress();
       showRoundIntro();
     }
